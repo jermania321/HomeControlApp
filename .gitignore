@@ -1,4 +1,7 @@
 __pycache__/
 *.pyc
 *.pyo
-.venv/
+.venv*/
+# OAuth artifacts must never be committed if copied into the workspace.
+credentials.json
+gmail-token.json
