@@ -1,6 +1,6 @@
 import unittest
 
-from priority_classifier import priority_color, priority_rank
+from homecontrol.priority_classifier import priority_color, priority_rank
 
 
 class PriorityColorTests(unittest.TestCase):

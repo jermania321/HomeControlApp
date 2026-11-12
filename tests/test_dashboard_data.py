@@ -1,7 +1,8 @@
 import unittest
 from zoneinfo import ZoneInfoNotFoundError
 from datetime import datetime, timezone
-from dashboard_data import CoalescingWorkQueue, local_time, parse_frankfurter, validate_cached_rates
+from homecontrol.dashboard_data import (CoalescingWorkQueue, local_time,
+                                        parse_frankfurter, validate_cached_rates)
 from homecontrol import load_settings
 
 

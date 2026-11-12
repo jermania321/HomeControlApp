@@ -6,7 +6,9 @@ from pathlib import Path
 from tempfile import TemporaryDirectory
 from unittest.mock import Mock, patch
 
-from gmail_integration import GmailIntegrationError, SCOPES, _message_record, _credentials, fetch_latest_inbox, gmail_message_url
+from homecontrol.gmail_integration import (GmailIntegrationError, SCOPES,
+                                           _message_record, _credentials,
+                                           fetch_latest_inbox, gmail_message_url)
 
 
 def make_service(messages):

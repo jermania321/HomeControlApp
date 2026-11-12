@@ -11,11 +11,13 @@ from PySide6.QtWidgets import (QApplication, QDialog, QFormLayout, QHBoxLayout, 
     QTextEdit, QVBoxLayout, QWidget, QMenu, QStackedWidget, QSpinBox, QHeaderView, QFrame, QStyle, QBoxLayout,
     QScrollArea, QSizePolicy)
 
-from gmail_integration import connect_gmail, fetch_latest_inbox, poll_new_high
-from homecontrol import load_settings, save_settings, save_connection_state, set_start_with_windows
-from priority_classifier import priority_color, priority_rank
-from dashboard_data import CoalescingWorkQueue, fetch_fx, local_time, validate_cached_rates
-from gmail_integration import gmail_message_url
+from .gmail_integration import (connect_gmail, fetch_latest_inbox, gmail_message_url,
+                                poll_new_high)
+from .settings import (load_settings, save_settings, save_connection_state,
+                       set_start_with_windows)
+from .priority_classifier import priority_color, priority_rank
+from .dashboard_data import (CoalescingWorkQueue, fetch_fx, local_time,
+                             validate_cached_rates)
 
 
 class Worker(QObject):

@@ -8,7 +8,7 @@ from datetime import datetime, timezone
 from email.header import decode_header, make_header
 from pathlib import Path
 
-from priority_classifier import classify_priority
+from .priority_classifier import classify_priority
 
 SCOPES = ["https://www.googleapis.com/auth/gmail.readonly"]
 MAX_MESSAGES = 100

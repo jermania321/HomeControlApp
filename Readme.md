@@ -36,8 +36,8 @@ unset). OAuth setup, credentials and token storage details follow below.
 
 ## Read-only Gmail integration
 
-The optional `gmail_integration.fetch_latest_inbox()` function uses Google's
-official Gmail API and the installed-app OAuth flow. It requests only
+The optional `homecontrol.gmail_integration.fetch_latest_inbox()` function uses
+Google's official Gmail API and the installed-app OAuth flow. It requests only
 `https://www.googleapis.com/auth/gmail.readonly`, reads up to the 100 newest
 messages labeled `INBOX`, and returns sender, decoded subject, UTC received
 date, snippet preview, and priority from `classify_priority(subject)`. It does
@@ -76,3 +76,6 @@ as `GmailIntegrationError` with sanitized messages.
 
 Run `python -m unittest`. Gmail API calls are mocked; the tests require no live
 Google account, credentials, or network access.
+
+Application modules are grouped under `homecontrol/`, with tests under `tests/`.
+See `SKILLS.md` for the file-organization rules to follow when adding modules.

@@ -2,10 +2,9 @@
 import json
 import os
 import tempfile
-import traceback
 from pathlib import Path
 
-from priority_classifier import DEFAULT_RULES
+from .priority_classifier import DEFAULT_RULES
 
 
 def settings_path():
@@ -84,28 +83,9 @@ def set_start_with_windows(enabled, project_dir=None, appdata=None):
         except FileNotFoundError:
             pass
         return
-    project = Path(project_dir or Path(__file__).resolve().parent).resolve()
+    project = Path(project_dir or Path(__file__).resolve().parent.parent).resolve()
     pythonw = project / ".venv" / "Scripts" / "pythonw.exe"
     entry.parent.mkdir(parents=True, exist_ok=True)
     entry.write_text('@echo off\r\n'
                      f'cd /d "{project}"\r\n'
                      f'start "" "{pythonw}" -m homecontrol\r\n', encoding="utf-8")
-
-
-def main():
-    try:
-        from homecontrol_gui import main as gui_main
-        gui_main()
-    except BaseException:
-        log = Path(os.environ.get("APPDATA", Path.home())) / "HomeControlApp" / "app.log"
-        try:
-            log.parent.mkdir(parents=True, exist_ok=True)
-            with log.open("a", encoding="utf-8") as stream:
-                traceback.print_exc(file=stream)
-        except Exception:
-            pass
-        raise
-
-
-if __name__ == "__main__":
-    main()

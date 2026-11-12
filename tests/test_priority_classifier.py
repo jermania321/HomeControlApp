@@ -1,6 +1,6 @@
 import unittest
 
-from priority_classifier import classify_priority
+from homecontrol.priority_classifier import classify_priority
 
 
 class ClassifyPriorityTests(unittest.TestCase):
