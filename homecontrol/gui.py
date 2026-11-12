@@ -4,7 +4,7 @@ import webbrowser
 import ctypes
 from datetime import datetime, timezone
 
-from PySide6.QtCore import QObject, QThread, QTimer, Signal, Qt
+from PySide6.QtCore import QObject, QPoint, QThread, QTimer, Signal, Qt
 from PySide6.QtGui import QAction, QColor, QFont
 from PySide6.QtWidgets import (QApplication, QDialog, QFormLayout, QHBoxLayout, QLabel,
     QMainWindow, QMessageBox, QPushButton, QSystemTrayIcon, QTableWidget, QTableWidgetItem, QCheckBox,
@@ -18,6 +18,7 @@ from .settings import (load_settings, save_settings, save_connection_state,
 from .priority_classifier import priority_color, priority_rank
 from .dashboard_data import (CoalescingWorkQueue, fetch_fx, local_time,
                              validate_cached_rates)
+from .desktop_widget import DesktopWidget
 
 
 class Worker(QObject):
@@ -33,6 +34,7 @@ class MainWindow(QMainWindow):
     def __init__(self):
         super().__init__(); self.setWindowTitle("HomeControl — Gmail Priority Inbox"); self.resize(1050, 720); self.setMinimumSize(760, 600)
         self.service = None; self.busy = False; self.settings = load_settings()
+        self._high_mail_count = None
         self._pending = CoalescingWorkQueue()
         self.table = QTableWidget(0, 5); self.table.setHorizontalHeaderLabels(["Priority", "Sender", "Subject", "Date", "Snippet"])
         self.table.setFont(QFont("Segoe UI", 11))
@@ -125,6 +127,17 @@ class MainWindow(QMainWindow):
         navigation.addWidget(home_button); navigation.addWidget(gmail_button); navigation.addStretch()
         shell_layout.addLayout(navigation); shell_layout.addWidget(self.pages)
         self.setCentralWidget(shell)
+        self.widget = DesktopWidget()
+        self.widget.expandRequested.connect(self.show_and_activate)
+        self.widget.hideRequested.connect(self.hide_widget)
+        self.widget.positionChanged.connect(self._save_widget_position)
+        self.widget_toggle = QPushButton("Show desktop widget")
+        self.widget_toggle.clicked.connect(self.toggle_widget)
+        navigation.addWidget(self.widget_toggle)
+        if self.settings.get("widget_enabled", True):
+            self._restore_widget()
+        else:
+            self._sync_widget_control()
         self.pages.currentChanged.connect(self._update_navigation)
         self._update_navigation(self.pages.currentIndex())
         self.tray = QSystemTrayIcon(self)
@@ -222,7 +235,9 @@ class MainWindow(QMainWindow):
 
     def update_clock(self):
         self.india_time_label.setText(local_time("Asia/Kolkata"))
-        self.dallas_time_label.setText(local_time("America/Chicago"))
+        dallas = local_time("America/Chicago")
+        self.dallas_time_label.setText(dallas)
+        self.widget.set_dallas_time(dallas)
     def _fx_age_hours(self):
         try: return (datetime.now(timezone.utc) - datetime.fromisoformat(self.settings["fx_fetched_at"])).total_seconds() / 3600
         except (KeyError, TypeError, ValueError): return float("inf")
@@ -232,6 +247,7 @@ class MainWindow(QMainWindow):
             self.usd_inr_label.setText("Unavailable · INR per USD")
             self.jpy_inr_label.setText("Unavailable · INR per JPY")
             self.fx_updated_label.setText(error or "Rates could not be loaded.")
+            self.widget.set_rates("Unavailable", "Unavailable", error or "Rates unavailable")
             return
         stale = self._fx_age_hours() >= 24
         self.usd_inr_label.setText(f"₹{rates['INR']:.2f} per USD")
@@ -240,6 +256,10 @@ class MainWindow(QMainWindow):
         if stale: status += " · Stale"
         if error: status += f" · Refresh failed: {error}"
         self.fx_updated_label.setText(status)
+        widget_status = f"As of {self.settings.get('fx_rate_date') or 'unknown date'}"
+        if stale: widget_status += " · stale"
+        if error: widget_status += " · refresh failed"
+        self.widget.set_rates(f"₹{rates['INR']:.2f}", f"₹{rates['INR_per_JPY']:.4f}", widget_status)
     def refresh_fx(self):
         self.start_work(fetch_fx, self._fx_done, "fx")
     def _fx_done(self, result):
@@ -281,6 +301,14 @@ class MainWindow(QMainWindow):
                 self.show_cached_fx(error)
             else:
                 self.status.setText(error)
+                if callback == getattr(self, "_gmail_done", None):
+                    self.widget.set_high_mail_count(
+                        self._high_mail_count,
+                        stale=self._high_mail_count is not None,
+                        unavailable=self._high_mail_count is None,
+                    )
+                elif callback == getattr(self, "_reconnected", None):
+                    self.widget.set_high_mail_count(None, unavailable=True)
         elif callback: callback(result)
         if self._pending:
             category, operation, next_callback = self._pending.pop()
@@ -296,6 +324,8 @@ class MainWindow(QMainWindow):
         if not self.service:
             self.status.setText("Connect Gmail first."); return
         self.status.setText("Checking Gmail…")
+        self.widget.set_high_mail_count(self._high_mail_count,
+                                        stale=self._high_mail_count is not None, loading=True)
         def poll():
             state = {"history_id": self.settings.get("history_id"), "seen_ids": self.settings.get("seen_ids", [])}
             alerts = poll_new_high(self.service, state, self.settings.get("rules"))
@@ -304,8 +334,11 @@ class MainWindow(QMainWindow):
         def done(result):
             state, alerts, rows = result; self.settings.update(state); save_settings(self.settings); self.render(rows)
             summary = f"{len(rows)} messages · {sum(r['priority']=='HIGH' for r in rows)} high · {sum(r['priority']=='MEDIUM' for r in rows)} medium"
+            self._high_mail_count = sum(r["priority"] == "HIGH" for r in rows)
+            self.widget.set_high_mail_count(self._high_mail_count)
             self.status.setText(summary); self.home_summary.setText(summary)
             if alerts: self.tray.showMessage("Gmail Priority Inbox", f"{len(alerts)} new high-priority message(s)")
+        self._gmail_done = done
         self.start_work(poll, done, "gmail-poll")
     def render(self, rows):
         rows = sorted(rows, key=lambda row: priority_rank(row["priority"]))
@@ -337,6 +370,36 @@ class MainWindow(QMainWindow):
             self.settings["rules"] = {"high": [x.strip() for x in high.toPlainText().split(",") if x.strip()], "medium": [x.strip() for x in medium.toPlainText().split(",") if x.strip()]}; save_settings(self.settings); dialog.accept()
         button.clicked.connect(save); dialog.exec()
     def closeEvent(self, event): event.ignore(); self.hide(); self.tray.showMessage("Gmail Priority Inbox", "Still running in the system tray.")
+    def _sync_widget_control(self):
+        visible = self.widget.isVisible()
+        self.widget_toggle.setText("Hide desktop widget" if visible else "Show desktop widget")
+        self.widget_toggle.setAccessibleName(self.widget_toggle.text())
+    def _restore_widget(self):
+        position = self.settings.get("widget_position")
+        point = None if position is None else QPoint(position["x"], position["y"])
+        self.widget.restore_position(point)
+        self.widget.show()
+        self._sync_widget_control()
+        self.show_cached_fx()
+        if not self.service:
+            self.widget.set_high_mail_count(None, unavailable=True)
+        elif self._high_mail_count is not None:
+            self.widget.set_high_mail_count(self._high_mail_count)
+    def toggle_widget(self):
+        if self.widget.isVisible():
+            self.hide_widget()
+        else:
+            self.settings["widget_enabled"] = True
+            save_settings(self.settings)
+            self._restore_widget()
+    def hide_widget(self):
+        self.widget.hide()
+        self.settings["widget_enabled"] = False
+        save_settings(self.settings)
+        self._sync_widget_control()
+    def _save_widget_position(self, position):
+        self.settings["widget_position"] = {"x": position.x(), "y": position.y()}
+        save_settings(self.settings)
     def show_and_activate(self):
         self.showNormal()
         self.raise_()
@@ -365,6 +428,16 @@ def main():
             background-color: #222833; border: 1px solid #394354; border-radius: 10px;
         }
         QFrame#dashboardCard QLabel { background-color: transparent; border: none; }
+        QFrame#desktopWidget {
+            background-color: #202630; border: 1px solid #536176; border-radius: 12px;
+        }
+        QFrame#desktopWidgetHeader, QFrame#widgetRateCard { background-color: transparent; border: none; }
+        QLabel#widgetTitle { color: #f2f5fa; font-weight: 700; font-size: 11pt; }
+        QLabel#widgetTime { color: #ffffff; font-weight: 700; font-size: 21pt; }
+        QLabel#widgetRateTitle, QLabel#widgetStatus { color: #a8b2c2; font-size: 8pt; }
+        QLabel#widgetRateValue { color: #f4f6fa; font-weight: 600; font-size: 12pt; }
+        QLabel#widgetHighMail { color: #ffcf70; font-weight: 700; font-size: 12pt; }
+        QPushButton#widgetAction { padding: 4px 7px; font-size: 9pt; }
         QLabel#mutedLabel { color: #a8b2c2; }
         QLabel#sectionHeading { color: #f2f5fa; font-size: 15pt; font-weight: 600; }
         QPushButton {
