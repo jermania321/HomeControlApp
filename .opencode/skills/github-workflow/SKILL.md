@@ -37,6 +37,15 @@ Prepare repository changes for safe collaboration.
 - Never merge or force-push automatically.
 - Never include secrets or credentials.
 
+## 5. Post-push CI verification
+
+- After every push to a pull request, inspect the checks for the pushed head.
+- Treat queued/running checks as pending; do not infer a final result.
+- Once checks complete, update the pull request's Markdown validation section
+  with the workflow name, pass/fail result, and check-run link.
+- If a check fails, summarize the failing job accurately and report the PR as
+  failing until a later head passes.
+
 ## Git Naming Conventions
 
 ### Branch Names

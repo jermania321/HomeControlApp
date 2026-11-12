@@ -2,10 +2,9 @@
 import json
 import os
 import tempfile
-import traceback
 from pathlib import Path
 
-from priority_classifier import DEFAULT_RULES
+from .priority_classifier import DEFAULT_RULES
 
 
 def settings_path():
@@ -23,12 +22,19 @@ def load_settings():
         start_with_windows = data.get("start_with_windows", False)
         if type(start_with_windows) is not bool:
             start_with_windows = False
+        try:
+            interval = max(1, min(1440, int(data.get("poll_interval_minutes", 30))))
+        except (TypeError, ValueError):
+            interval = 30
         return {"rules": data.get("rules", DEFAULT_RULES), "history_id": data.get("history_id"),
                 "seen_ids": data.get("seen_ids", []), "connected": connected,
-                "start_with_windows": start_with_windows}
+                "start_with_windows": start_with_windows, "poll_interval_minutes": interval,
+                "fx_rates": data.get("fx_rates"), "fx_rate_date": data.get("fx_rate_date"),
+                "fx_fetched_at": data.get("fx_fetched_at")}
     except (OSError, ValueError, TypeError):
         return {"rules": {k: list(v) for k, v in DEFAULT_RULES.items()}, "history_id": None, "seen_ids": [],
-                "connected": False, "start_with_windows": False}
+                "connected": False, "start_with_windows": False, "poll_interval_minutes": 30,
+                "fx_rates": None, "fx_rate_date": None, "fx_fetched_at": None}
 
 
 def save_settings(data):
@@ -77,28 +83,9 @@ def set_start_with_windows(enabled, project_dir=None, appdata=None):
         except FileNotFoundError:
             pass
         return
-    project = Path(project_dir or Path(__file__).resolve().parent).resolve()
+    project = Path(project_dir or Path(__file__).resolve().parent.parent).resolve()
     pythonw = project / ".venv" / "Scripts" / "pythonw.exe"
     entry.parent.mkdir(parents=True, exist_ok=True)
     entry.write_text('@echo off\r\n'
                      f'cd /d "{project}"\r\n'
                      f'start "" "{pythonw}" -m homecontrol\r\n', encoding="utf-8")
-
-
-def main():
-    try:
-        from homecontrol_gui import main as gui_main
-        gui_main()
-    except BaseException:
-        log = Path(os.environ.get("APPDATA", Path.home())) / "HomeControlApp" / "app.log"
-        try:
-            log.parent.mkdir(parents=True, exist_ok=True)
-            with log.open("a", encoding="utf-8") as stream:
-                traceback.print_exc(file=stream)
-        except Exception:
-            pass
-        raise
-
-
-if __name__ == "__main__":
-    main()

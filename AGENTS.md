@@ -39,3 +39,11 @@ propose a plan and obtain approval.
 5. Implement only approved changes.
 6. Run relevant tests.
 7. Summarize modifications and remaining risks.
+
+## Pull Request CI Follow-up
+
+- After every authorized push to a pull request, check its GitHub Actions status.
+- Do not report a queued or running check as passed or failed; report it as pending.
+- Once checks finish, update the pull request's Markdown validation section with
+  the relevant workflow result and link. Record failures accurately and do not
+  describe the PR as green until the latest head's checks pass.

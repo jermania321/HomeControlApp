@@ -1,12 +1,13 @@
 import os
+import types
 import unittest
 from tempfile import TemporaryDirectory
 from pathlib import Path
 from unittest.mock import Mock, patch
 
 from homecontrol import load_settings, save_settings, save_connection_state, set_start_with_windows
-from gmail_integration import poll_new_high, GmailIntegrationError
-from priority_classifier import classify_priority, DEFAULT_RULES
+from homecontrol.gmail_integration import poll_new_high, GmailIntegrationError
+from homecontrol.priority_classifier import classify_priority, DEFAULT_RULES
 
 
 class SettingsTests(unittest.TestCase):
@@ -35,6 +36,15 @@ class SettingsTests(unittest.TestCase):
             set_start_with_windows(False, project, appdata)
             self.assertFalse(entry.exists())
             self.assertTrue(unrelated.exists())
+
+    def test_startup_script_uses_repository_root_by_default(self):
+        with TemporaryDirectory() as directory:
+            set_start_with_windows(True, appdata=directory)
+            entry = Path(directory) / "Microsoft/Windows/Start Menu/Programs/Startup/HomeControlApp-start.bat"
+            script = entry.read_text(encoding="utf-8")
+            project_root = Path(__file__).resolve().parents[1]
+            self.assertIn(f'cd /d "{project_root}"', script)
+            self.assertIn(str(project_root / ".venv" / "Scripts" / "pythonw.exe"), script)
 
     def test_rules_persist_per_user(self):
         with TemporaryDirectory() as directory, patch.dict(os.environ, {"APPDATA": directory}):
@@ -76,11 +86,15 @@ class SettingsTests(unittest.TestCase):
                         "seen_ids": [],
                         "connected": False,
                         "start_with_windows": False,
+                        "poll_interval_minutes": 30,
+                        "fx_rates": None,
+                        "fx_rate_date": None,
+                        "fx_fetched_at": None,
                     })
 
     def test_reconnect_preserves_checkpoint_state(self):
         settings = {"connected": False, "history_id": "123", "seen_ids": ["m1"]}
-        with patch("homecontrol.save_settings") as save:
+        with patch("homecontrol.settings.save_settings") as save:
             save_connection_state(settings)
         self.assertIs(settings["connected"], True)
         self.assertEqual(settings["history_id"], "123")
@@ -138,6 +152,16 @@ class PollingTests(unittest.TestCase):
             Mock(execute=Mock(return_value={"payload": {"headers": [{"name": "Subject", "value": "Urgent: two"}]}}))]
         self.assertEqual(set(poll_new_high(service, state)), {"m1", "m2"})
         self.assertEqual(state["history_id"], "3")
+
+
+class EntryPointTests(unittest.TestCase):
+    def test_package_entry_point_launches_gui(self):
+        from homecontrol.__main__ import main
+        gui_module = types.ModuleType("homecontrol.gui")
+        gui_module.main = Mock()
+        with patch.dict("sys.modules", {"homecontrol.gui": gui_module}):
+            main()
+        gui_module.main.assert_called_once_with()
 
 
 if __name__ == "__main__": unittest.main()
