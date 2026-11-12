@@ -90,7 +90,26 @@ class SettingsTests(unittest.TestCase):
                         "fx_rates": None,
                         "fx_rate_date": None,
                         "fx_fetched_at": None,
+                        "widget_enabled": True,
+                        "widget_position": None,
                     })
+
+    def test_widget_preferences_are_validated_and_round_trip(self):
+        with TemporaryDirectory() as directory, patch.dict(os.environ, {"APPDATA": directory}):
+            settings_file = Path(directory) / "HomeControlApp" / "settings.json"
+            settings_file.parent.mkdir(parents=True)
+            settings_file.write_text(
+                '{"widget_enabled":"no","widget_position":{"x":"12","y":24}}',
+                encoding="utf-8",
+            )
+            settings = load_settings()
+            self.assertIs(settings["widget_enabled"], True)
+            self.assertIsNone(settings["widget_position"])
+            settings.update(widget_enabled=False, widget_position={"x": 120, "y": 240})
+            save_settings(settings)
+            restored = load_settings()
+            self.assertIs(restored["widget_enabled"], False)
+            self.assertEqual(restored["widget_position"], {"x": 120, "y": 240})
 
     def test_reconnect_preserves_checkpoint_state(self):
         settings = {"connected": False, "history_id": "123", "seen_ids": ["m1"]}

@@ -22,6 +22,16 @@ def load_settings():
         start_with_windows = data.get("start_with_windows", False)
         if type(start_with_windows) is not bool:
             start_with_windows = False
+        widget_enabled = data.get("widget_enabled", True)
+        if type(widget_enabled) is not bool:
+            widget_enabled = True
+        widget_position = data.get("widget_position")
+        if (not isinstance(widget_position, dict)
+                or type(widget_position.get("x")) is not int
+                or type(widget_position.get("y")) is not int):
+            widget_position = None
+        else:
+            widget_position = {"x": widget_position["x"], "y": widget_position["y"]}
         try:
             interval = max(1, min(1440, int(data.get("poll_interval_minutes", 30))))
         except (TypeError, ValueError):
@@ -30,11 +40,13 @@ def load_settings():
                 "seen_ids": data.get("seen_ids", []), "connected": connected,
                 "start_with_windows": start_with_windows, "poll_interval_minutes": interval,
                 "fx_rates": data.get("fx_rates"), "fx_rate_date": data.get("fx_rate_date"),
-                "fx_fetched_at": data.get("fx_fetched_at")}
+                "fx_fetched_at": data.get("fx_fetched_at"),
+                "widget_enabled": widget_enabled, "widget_position": widget_position}
     except (OSError, ValueError, TypeError):
         return {"rules": {k: list(v) for k, v in DEFAULT_RULES.items()}, "history_id": None, "seen_ids": [],
                 "connected": False, "start_with_windows": False, "poll_interval_minutes": 30,
-                "fx_rates": None, "fx_rate_date": None, "fx_fetched_at": None}
+                "fx_rates": None, "fx_rate_date": None, "fx_fetched_at": None,
+                "widget_enabled": True, "widget_position": None}
 
 
 def save_settings(data):
