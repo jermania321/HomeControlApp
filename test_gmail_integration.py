@@ -6,7 +6,7 @@ from pathlib import Path
 from tempfile import TemporaryDirectory
 from unittest.mock import Mock, patch
 
-from gmail_integration import GmailIntegrationError, SCOPES, _message_record, _credentials, fetch_latest_inbox
+from gmail_integration import GmailIntegrationError, SCOPES, _message_record, _credentials, fetch_latest_inbox, gmail_message_url
 
 
 def make_service(messages):
@@ -61,6 +61,12 @@ class GmailIntegrationTests(unittest.TestCase):
     def test_malformed_date_is_empty(self):
         result = _message_record({"internalDate": "not-a-date", "payload": {"headers": []}})
         self.assertEqual(result["received_date"], "")
+
+    def test_exact_message_id_and_safe_url(self):
+        result = _message_record({"id": "abc_123-XYZ", "payload": {"headers": []}})
+        self.assertEqual(result["id"], "abc_123-XYZ")
+        self.assertEqual(gmail_message_url(result["id"]), "https://mail.google.com/mail/u/0/#all/abc_123-XYZ")
+        self.assertEqual(gmail_message_url("abc/123"), "")
 
 
 class OAuthTests(unittest.TestCase):

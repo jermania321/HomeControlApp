@@ -89,12 +89,21 @@ def _message_record(message, rules=None):
                for h in message.get("payload", {}).get("headers", [])}
     subject = _decode_text(headers.get("subject", ""))
     return {
+        "id": str(message.get("id", "")),
         "sender": _decode_text(headers.get("from", "")),
         "subject": subject,
         "received_date": _received_date(message.get("internalDate")),
         "snippet": message.get("snippet", ""),
         "priority": classify_priority(subject, rules),
     }
+
+
+def gmail_message_url(message_id):
+    """Build a Gmail URL only for a valid opaque message identifier."""
+    from urllib.parse import quote
+    if not isinstance(message_id, str) or not message_id or any(c not in "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789-_" for c in message_id):
+        return ""
+    return "https://mail.google.com/mail/u/0/#all/" + quote(message_id, safe="")
 
 
 def fetch_latest_inbox(service=None, *, credentials_path=None, token_path=None, rules=None):
@@ -113,6 +122,7 @@ def fetch_latest_inbox(service=None, *, credentials_path=None, token_path=None, 
                                                        format="metadata",
                                                        metadataHeaders=["From", "Subject"]).execute()
             records.append(_message_record(message, rules))
+            records[-1]["id"] = str(item["id"])
         return records
     except GmailIntegrationError:
         raise

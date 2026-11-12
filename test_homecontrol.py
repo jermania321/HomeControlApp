@@ -76,6 +76,10 @@ class SettingsTests(unittest.TestCase):
                         "seen_ids": [],
                         "connected": False,
                         "start_with_windows": False,
+                        "poll_interval_minutes": 30,
+                        "fx_rates": None,
+                        "fx_rate_date": None,
+                        "fx_fetched_at": None,
                     })
 
     def test_reconnect_preserves_checkpoint_state(self):
