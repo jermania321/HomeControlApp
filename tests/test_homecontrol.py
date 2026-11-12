@@ -1,4 +1,5 @@
 import os
+import types
 import unittest
 from tempfile import TemporaryDirectory
 from pathlib import Path
@@ -156,10 +157,11 @@ class PollingTests(unittest.TestCase):
 class EntryPointTests(unittest.TestCase):
     def test_package_entry_point_launches_gui(self):
         from homecontrol.__main__ import main
-        from homecontrol import gui
-        with patch.object(gui, "main") as gui_main:
+        gui_module = types.ModuleType("homecontrol.gui")
+        gui_module.main = Mock()
+        with patch.dict("sys.modules", {"homecontrol.gui": gui_module}):
             main()
-        gui_main.assert_called_once_with()
+        gui_module.main.assert_called_once_with()
 
 
 if __name__ == "__main__": unittest.main()
