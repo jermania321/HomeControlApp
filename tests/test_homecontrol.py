@@ -156,7 +156,8 @@ class PollingTests(unittest.TestCase):
 class EntryPointTests(unittest.TestCase):
     def test_package_entry_point_launches_gui(self):
         from homecontrol.__main__ import main
-        with patch("homecontrol.gui.main") as gui_main:
+        from homecontrol import gui
+        with patch.object(gui, "main") as gui_main:
             main()
         gui_main.assert_called_once_with()
 
