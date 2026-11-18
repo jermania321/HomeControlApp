@@ -144,6 +144,25 @@ class OAuthTests(unittest.TestCase):
                     _credentials(token_path=token)
         self.assertNotIn("secret refresh token", str(caught.exception))
 
+    def test_revoked_refresh_token_starts_fresh_consent_flow(self):
+        stale_creds = Mock(valid=False, expired=True, refresh_token="sensitive", scopes=SCOPES)
+        stale_creds.refresh.side_effect = RuntimeError("invalid_grant: token has been revoked")
+        refreshed_creds = Mock(valid=True, scopes=SCOPES, to_json=Mock(return_value="new token"))
+        credentials = Mock()
+        credentials.from_authorized_user_file.return_value = stale_creds
+        flow = Mock()
+        flow.from_client_secrets_file.return_value.run_local_server.return_value = refreshed_creds
+        with TemporaryDirectory() as directory:
+            client = Path(directory) / "client.json"
+            client.write_text("{}", encoding="utf-8")
+            token = Path(directory) / "token.json"
+            token.write_text(self.token_json(), encoding="utf-8")
+            with self.oauth_modules(credentials, flow):
+                self.assertIs(_credentials(client, token), refreshed_creds)
+            self.assertEqual(token.read_text(encoding="utf-8"), "new token")
+        flow.from_client_secrets_file.return_value.run_local_server.assert_called_once_with(
+            port=0, prompt="consent")
+
     def test_saved_token_with_broader_scope_is_rejected(self):
         creds = Mock(valid=True, expired=False,
                      scopes=SCOPES + ["https://www.googleapis.com/auth/gmail.modify"])
