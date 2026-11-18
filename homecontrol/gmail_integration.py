@@ -45,8 +45,19 @@ def _credentials(credentials_path=None, token_path=None):
                     or token_data["scopes"] != SCOPES):
                 raise GmailIntegrationError("The saved Gmail authorization has unexpected permissions.")
             creds = Credentials.from_authorized_user_file(str(token_file), SCOPES)
+        needs_consent = False
         if creds and creds.expired and creds.refresh_token:
-            creds.refresh(Request())
+            try:
+                creds.refresh(Request())
+            except Exception as exc:
+                # Google revokes refresh tokens (for example, when consent is
+                # withdrawn). A refresh failure with invalid_grant cannot be
+                # repaired by retrying the same token; send the user through
+                # OAuth again instead of leaving Gmail permanently disconnected.
+                if "invalid_grant" not in str(exc).casefold():
+                    raise
+                creds = None
+                needs_consent = True
         if not creds or not creds.valid:
             if not client_file.is_file():
                 raise GmailIntegrationError(
@@ -54,7 +65,10 @@ def _credentials(credentials_path=None, token_path=None):
                     "at the documented external location."
                 )
             flow = InstalledAppFlow.from_client_secrets_file(str(client_file), SCOPES)
-            creds = flow.run_local_server(port=0)
+            if needs_consent:
+                creds = flow.run_local_server(port=0, prompt="consent")
+            else:
+                creds = flow.run_local_server(port=0)
         # Prevent storing a broader scope if a stale token file was supplied.
         if set(creds.scopes or ()) != set(SCOPES):
             raise GmailIntegrationError("The saved Gmail authorization has unexpected permissions.")
